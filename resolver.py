@@ -24,20 +24,52 @@ def fqdn(name: str) -> str:
 
 def encode_name(name: str) -> bytes:
     """Encode an uncompressed QNAME. Provided as a starting point."""
-    raise NotImplementedError
+    labels = name.rstrip(".").split('.')
+    serialisation = bytearray()
 
+    for label in labels:
+        raw = label.encode("ascii")
+        length = len(raw)
+
+        if length > 63:
+            raise DNSError(f"label too long: {label}")
+
+        serialisation.append(len(raw))
+        serialisation += raw
+
+    serialisation.append(0)
+
+    return bytes(serialisation)
 
 def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     """Decode a QNAME from PACKET starting at OFFSET.
 
     Return the decoded name and the offset of the next byte after the name.
     """
-    raise NotImplementedError
 
+    name = packet[offset:]
+    name = name.decode("ascii")
+    length = int(name[0]) + 1
+    labels = []
+
+    while length - 1 != 0:
+        labels.append(name[1:length])
+        name = name[length:]
+        offset += length
+        length = int(name[0]) + 1
+
+    domain = ".".join(labels)
+
+    return domain, offset + 1
 
 def make_query(msg: DNSMessage) -> bytes:
     """Build a standard UDP DNS query with recursion disabled."""
-    raise NotImplementedError
+    header = struct.pack("!HHHHHH", msg.ident & 0xFFFF, msg.flags & 0xFFFF,
+                         len(msg.questions), 0, 0, 0)
+    body = b""
+    for question in msg.questions:
+        body += encode_name(question.name) + struct.pack("!HH", question.type, question.cls)
+    return header + body
 
 
 def query_server(msg: DNSMessage, timeout: float, server: str) -> bytes:
