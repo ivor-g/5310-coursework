@@ -62,11 +62,32 @@ class DNSTopology(Topo):
         # add the client host, with the address and default route from the README
         host = self.addHost('host', ip='192.168.0.2/24',
                             defaultRoute='via 192.168.0.1')
-        s1 = self.addSwitch('s1')
-        self.addLink(host, s1)
 
-        root = self.addHost('root', cls=DNSServer, ip='10.0.0.2/24')
-        self.addLink(root, s1)
+        s1 = self.addSwitch('s1')
+        s2 = self.addSwitch('s2')
+        s3 = self.addSwitch('s3')
+        s4 = self.addSwitch('s4')
+        s5 = self.addSwitch('s5')
+
+        router1 = self.addHost('router1', cls=LinuxRouter, ip=None, routes=[('10.0.0.0/24', '172.16.32.2'), ('10.0.1.0/24', '172.16.32.2'), ('10.0.2.0/24', '172.16.32.2'), ('10.0.3.0/24', '172.16.32.2')])
+        router2 = self.addHost('router2', cls=LinuxRouter, ip=None, routes=[('192.168.0.0/24', '172.16.32.1')])
+
+        root = self.addHost('root', cls=DNSServer, ip='10.0.0.2/24', defaultRoute='via 10.0.0.1')
+        tld = self.addHost('tld', cls=DNSServer, ip='10.0.1.2/24', defaultRoute='via 10.0.1.1')
+        auth = self.addHost('auth', cls=DNSServer, ip='10.0.2.2/24', defaultRoute='via 10.0.2.1')
+        lossy = self.addHost('lossy', cls=DNSServer, ip='10.0.3.2/24', defaultRoute='via 10.0.3.1')
+
+        self.addLink(host, s1)
+        self.addLink(router1, s1, intfName1='router1-eth0', params1={'ip': '192.168.0.1/24'})
+        self.addLink(router1, router2, intfName1='router1-eth1', intfName2='router2-eth0', params1={'ip': '172.16.32.1/16'}, params2={'ip': '172.16.32.2/16'})
+        self.addLink(router2, s3, intfName1='router2-eth1', params1={'ip': '10.0.1.1/24'})
+        self.addLink(router2, s4, intfName1='router2-eth2', params1={'ip': '10.0.2.1/24'})
+        self.addLink(router2, s5, intfName1='router2-eth3', params1={'ip': '10.0.3.1/24'}, delay='100ms', loss=10)
+        self.addLink(router2, s2, intfName1='router2-eth4', params1={'ip': '10.0.0.1/24'})
+        self.addLink(root, s2, intfName1='root-eth0', params1={'ip': '10.0.0.2/24'})
+        self.addLink(tld, s3, intfName1='tld-eth0', params1={'ip': '10.0.1.2/24'})
+        self.addLink(auth, s4, intfName1='auth-eth0', params1={'ip': '10.0.2.2/24'})
+        self.addLink(lossy, s5, intfName1='lossy-eth0', params1={'ip': '10.0.3.2/24'})
 
 # the topologies accessible to the mn tool's `--topo` flag
 # note: if using the Dockerfile, this must be the same as in the Dockerfile
