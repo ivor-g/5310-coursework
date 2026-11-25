@@ -34,7 +34,7 @@ def encode_name(name: str) -> bytes:
         if length > 63:
             raise DNSError(f"label too long: {label}")
 
-        serialisation.append(len(raw))
+        serialisation.append(length)
         serialisation += raw
 
     serialisation.append(0)
@@ -48,17 +48,18 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     """
 
     name = packet[offset:]
-    name = name.decode("ascii")
     length = int(name[0]) + 1
     labels = []
 
     while length - 1 != 0:
-        labels.append(name[1:length])
+        label = name[1:length].decode("ascii")
+        labels.append(label)
         name = name[length:]
         offset += length
         length = int(name[0]) + 1
 
     domain = ".".join(labels)
+    domain += "."
 
     return domain, offset + 1
 
@@ -68,7 +69,8 @@ def make_query(msg: DNSMessage) -> bytes:
                          len(msg.questions), 0, 0, 0)
     body = b""
     for question in msg.questions:
-        body += encode_name(question.name) + struct.pack("!HH", question.type, question.cls)
+        qname = encode_name(question.name)
+        body += qname + struct.pack("!HH", question.type, question.cls)
     return header + body
 
 
@@ -106,8 +108,45 @@ def parse_response(packet: bytes, expected_id: int) -> DNSMessage:
     containing answer, authority, and additional records. Use the supplied
     DNSMessage, DNSQuestion, and DNSRecord classes from dns_model.py.
     """
-    raise NotImplementedError
+    
+    response_id = packet[:16]
+    flags = packet[16:32]
+    QDCount = int(packet[32:48])
+    ANCount = int(packet[48:64])
+    NSCount = int(packet[64:80])
+    ARCount = int(packet[80:96])
 
+    questions = []
+    offset = 96
+
+    for i in range(QDCount):
+        name, offset = decode_name(packet, offset)
+        QType = int(packet[offset:offset + 16])
+        QClass = int(packet[offset + 16:offset + 32])
+        question = DNSQuestion(name, QType, QClass)
+        questions.append(question)
+        offset += 32
+
+    answers = []
+    
+    for i in range(ANCount):
+        name, offset = decode_name(packet, offset)
+        AType = int(packet[offset:offset + 16])
+        AClass = int(packet[offset + 16:offset + 32])
+        ttl = int(packet[offset + 32:offset + 64])
+        RDLength = int(packet[offset + 64:offset + 80])
+        data = packet[offset + 80:offset + 80 + RDLength]
+
+        if AType == 2 or AType == 5: # if type is NS or CNAME return domain name as str
+            RData, _ = decode_name(data, 0)
+        else:
+            RData = str(data)
+
+        answer = DNSRecord(name, AType, RData, AClass, ttl)
+        answers.append(answer)
+        offset += 80 + RDLength
+
+    raise NotImplementedError
 
 def resolve_iteratively(name: str, qtype: int, root: str, timeout: float = 2.0,
                         trace: bool = False) -> list[DNSRecord]:

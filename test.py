@@ -1,16 +1,17 @@
-
 def encode_name(name: str) -> bytes:
     """Encode an uncompressed QNAME. Provided as a starting point."""
-    labels = name.split('.')
-    serialisation = ""
+    labels = name.rstrip(".").split('.')
+    serialisation = bytearray()
 
     for label in labels:
-        serialisation += str(len(label)) + label
+        raw = label.encode("ascii")
+        length = len(raw)
+        serialisation.append(length)
+        serialisation += raw
 
-    serialisation += "0"
+    serialisation.append(0)
 
-    return serialisation.encode("utf-8")
-
+    return bytes(serialisation)
 
 def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     """Decode a QNAME from PACKET starting at OFFSET.
@@ -19,12 +20,12 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     """
 
     name = packet[offset:]
-    name = name.decode("utf-8")
     length = int(name[0]) + 1
-    labels= []
+    labels = []
 
     while length - 1 != 0:
-        labels.append(name[1:length])
+        label = name[1:length].decode("ascii")
+        labels.append(label)
         name = name[length:]
         offset += length
         length = int(name[0]) + 1
