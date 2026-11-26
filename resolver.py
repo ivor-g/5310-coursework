@@ -108,45 +108,56 @@ def parse_response(packet: bytes, expected_id: int) -> DNSMessage:
     containing answer, authority, and additional records. Use the supplied
     DNSMessage, DNSQuestion, and DNSRecord classes from dns_model.py.
     """
-    
-    response_id = packet[:16]
-    flags = packet[16:32]
-    QDCount = int(packet[32:48])
-    ANCount = int(packet[48:64])
-    NSCount = int(packet[64:80])
-    ARCount = int(packet[80:96])
+    header = packet[:12]
+
+    response_id, flags, QDCount, ANCount, NSCount, ARCount = struct.unpack("!HHHHHH", header)
+
+    if response_id != expected_id:
+        raise DNSError("Expected ID did not match response ID")
 
     questions = []
-    offset = 96
+    offset = 12
+
 
     for i in range(QDCount):
         name, offset = decode_name(packet, offset)
-        QType = int(packet[offset:offset + 16])
-        QClass = int(packet[offset + 16:offset + 32])
+        QType, QClass = struct.unpack("!HH", packet[offset : offset + 4])
         question = DNSQuestion(name, QType, QClass)
         questions.append(question)
-        offset += 32
+        offset += 4
 
-    answers = []
-    
-    for i in range(ANCount):
+    answers, offset = get_records(packet, ANCount, offset)
+    authorities, offset = get_records(packet, NSCount, offset)
+    additionals, offset = get_records(packet, ARCount, offset)
+
+    msg = DNSMessage(response_id, flags, questions, answers, authorities, additionals)
+
+    return msg
+
+def get_records(packet: bytes, count: int, offset: int) -> tuple[list, int]:
+    items = []
+
+    for i in range(count):
         name, offset = decode_name(packet, offset)
-        AType = int(packet[offset:offset + 16])
-        AClass = int(packet[offset + 16:offset + 32])
-        ttl = int(packet[offset + 32:offset + 64])
-        RDLength = int(packet[offset + 64:offset + 80])
-        data = packet[offset + 80:offset + 80 + RDLength]
+        AType, AClass, ttl, RDLength = struct.unpack("!HHLH", packet[offset : offset + 10])
+        data = packet[offset + 10 : offset + 10 + RDLength]
 
-        if AType == 2 or AType == 5: # if type is NS or CNAME return domain name as str
+        if AType == QTYPE["NS"] or AType == QTYPE["CNAME"]:
             RData, _ = decode_name(data, 0)
+        elif AType == QTYPE["A"]:
+            RData = socket.inet_ntoa(data)
+        elif AType == QTYPE["MX"]:
+            priority = data[:2] 
+            server, _ = decode_name(data[2:], 0)
+            RData = priority, server
         else:
             RData = str(data)
 
-        answer = DNSRecord(name, AType, RData, AClass, ttl)
-        answers.append(answer)
-        offset += 80 + RDLength
+        item = DNSRecord(name, AType, RData, AClass, ttl)
+        items.append(item)
+        offset += 10 + RDLength
 
-    raise NotImplementedError
+    return items, offset
 
 def resolve_iteratively(name: str, qtype: int, root: str, timeout: float = 2.0,
                         trace: bool = False) -> list[DNSRecord]:

@@ -1,3 +1,5 @@
+import struct
+
 def encode_name(name: str) -> bytes:
     """Encode an uncompressed QNAME. Provided as a starting point."""
     labels = name.rstrip(".").split('.')
@@ -38,3 +40,11 @@ serialised = encode_name("this.is.a.string")
 print(serialised)
 domain, offset = decode_name(serialised, 0)
 print(domain, offset)
+
+packed = struct.pack(">bhl", 1, 2, 3)
+unpacked = struct.unpack('>bhl', packed)
+print(f"packed type: {type(packed)}")
+print(f"packed: {packed}")
+print(f"unpacked type: {type(unpacked)}")
+print(f"unpacked: {unpacked}")
+
