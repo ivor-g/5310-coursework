@@ -48,6 +48,9 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     """
     name = packet[offset:]
 
+    if not name:
+        raise DNSError("offset reached end of packet")
+
     if name[0] >> 6 == 0x3:
         return resolve_name_compression(packet, offset), offset + 2
 
@@ -56,7 +59,7 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
 
     while length - 1 != 0:
         if name[0] >> 6 == 0x3:
-            name, _ = resolve_name_compression(packet, offset)
+            name = resolve_name_compression(packet, offset)
             labels.append(name[:-1]) # get rid of extra . at end of name
             offset += 1
             break
