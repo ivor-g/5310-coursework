@@ -48,3 +48,7 @@ print(f"packed: {packed}")
 print(f"unpacked type: {type(unpacked)}")
 print(f"unpacked: {unpacked}")
 
+bits = format(3,'b')
+print(bits[:2])
+num = int(bits, 2)
+print(num)
