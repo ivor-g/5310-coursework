@@ -47,14 +47,17 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     Return the decoded name and the offset of the next byte after the name.
     """
     name = packet[offset:]
+
+    if name[0] >> 6 == 0x3:
+        return resolve_name_compression(packet, offset), offset + 2
+
     length = int(name[0]) + 1
     labels = []
 
     while length - 1 != 0:
         if name[0] >> 6 == 0x3:
-            pointer = int.from_bytes(name[:2])&0x3fff
-            name, _ = decode_name(packet, pointer)
-            labels.append(name[:-1])
+            name, _ = resolve_name_compression(packet, offset)
+            labels.append(name[:-1]) # get rid of extra . at end of name
             offset += 1
             break
         label = name[1:length].decode("ascii")
@@ -67,6 +70,12 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     domain += "."
 
     return domain, offset + 1
+
+def resolve_name_compression(packet: bytes, offset: int) -> str:
+    name = packet[offset:]
+    pointer = int.from_bytes(name[:2])&0x3fff
+    name, _ = decode_name(packet, pointer)
+    return name
 
 def make_query(msg: DNSMessage) -> bytes:
     """Build a standard UDP DNS query with recursion disabled."""
