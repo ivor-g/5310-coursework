@@ -47,16 +47,16 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     Return the decoded name and the offset of the next byte after the name.
     """
     name = packet[offset:]
-
-    if name[0] >> 6 == 0b11:
-        pointer = int(name[:2])&0b0011111111111111
-        name, _ = decode_name(packet, pointer)
-        return name, offset + 2
-
     length = int(name[0]) + 1
     labels = []
 
     while length - 1 != 0:
+        if name[0] >> 6 == 0x3:
+            pointer = int.from_bytes(name[:2])&0x3fff
+            name, _ = decode_name(packet, pointer)
+            labels.append(name[:-1])
+            offset += 1
+            break
         label = name[1:length].decode("ascii")
         labels.append(label)
         name = name[length:]
