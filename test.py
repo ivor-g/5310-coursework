@@ -52,3 +52,7 @@ bits = format(3,'b')
 print(bits[:2])
 num = int(bits, 2)
 print(num)
+
+x = b'\xc0'  # 11000000
+if x[0] >> 6 == 0b11:
+    print("first 2 bits are 0")

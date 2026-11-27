@@ -48,10 +48,8 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
     """
     name = packet[offset:]
 
-    bits = format(name[:2],'b')
-
-    if bits[:2] == '11':
-        pointer = int(bits[2:16], 2)
+    if name[0] >> 6 == 0b11:
+        pointer = int(name[:2])&0b0011111111111111
         name, _ = decode_name(packet, pointer)
         return name, offset + 2
 
