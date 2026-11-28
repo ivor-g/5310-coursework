@@ -77,6 +77,10 @@ def decode_name(packet: bytes, offset: int) -> tuple[str, int]:
 def resolve_name_compression(packet: bytes, offset: int) -> str:
     name = packet[offset:]
     pointer = int.from_bytes(name[:2])&0x3fff
+
+    if pointer >= offset:
+        raise DNSError("Pointer is pointing to same address or larger")
+    
     name, _ = decode_name(packet, pointer)
     return name
 
@@ -157,22 +161,23 @@ def get_records(packet: bytes, count: int, offset: int) -> tuple[list, int]:
     for i in range(count):
         name, offset = decode_name(packet, offset)
         AType, AClass, ttl, RDLength = struct.unpack("!HHLH", packet[offset : offset + 10])
-        data = packet[offset + 10 : offset + 10 + RDLength]
+        offset += 10
+        data = packet[offset : offset + RDLength]
 
         if AType == QTYPE["NS"] or AType == QTYPE["CNAME"]:
-            RData, _ = decode_name(data, 0)
+            RData, _ = decode_name(packet, offset)
         elif AType == QTYPE["A"]:
             RData = socket.inet_ntoa(data)
         elif AType == QTYPE["MX"]:
             priority = data[:2] 
-            server, _ = decode_name(data[2:], 0)
+            server, _ = decode_name(packet, offset + 2)
             RData = priority, server
         else:
             RData = str(data)
 
         item = DNSRecord(name, AType, RData, AClass, ttl)
         items.append(item)
-        offset += 10 + RDLength
+        offset += + RDLength
 
     return items, offset
 
