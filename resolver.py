@@ -169,11 +169,11 @@ def get_records(packet: bytes, count: int, offset: int) -> tuple[list, int]:
         elif AType == QTYPE["A"]:
             RData = socket.inet_ntoa(data)
         elif AType == QTYPE["MX"]:
-            priority = data[:2] 
+            priority = int.from_bytes(data[:2])
             server, _ = decode_name(packet, offset + 2)
             RData = priority, server
         else:
-            RData = str(data)
+            RData = data.decode("ascii")
 
         item = DNSRecord(name, AType, RData, AClass, ttl)
         items.append(item)
